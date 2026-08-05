@@ -1,6 +1,6 @@
 use crate::trash::{self, TrashEntry};
 use crate::ui;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::{
     event::{self, Event, KeyCode, KeyModifiers},
     execute,
@@ -13,10 +13,12 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Row, Table, TableState},
     Terminal,
 };
+use std::collections::HashSet;
+use std::fs;
 use std::io;
 
 pub fn run() -> Result<()> {
-    let entries = trash::list_entries()?;
+    let mut entries = trash::list_entries()?;
 
     if entries.is_empty() {
         println!("Trash is empty 🗑️");
@@ -29,7 +31,7 @@ pub fn run() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let res = run_app(&mut terminal, entries);
+    let res = run_app(&mut terminal, &mut entries);
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -40,7 +42,7 @@ pub fn run() -> Result<()> {
 
 fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    entries: Vec<TrashEntry>,
+    entries: &mut Vec<TrashEntry>,
 ) -> Result<()> {
     let mut state = TableState::default();
     if !entries.is_empty() {
@@ -48,18 +50,22 @@ fn run_app(
     }
     let mut filter = String::new();
     let mut searching = false;
+    let mut selected_indices: HashSet<usize> = HashSet::new();
 
     loop {
-        let filtered_entries: Vec<&TrashEntry> = entries
+        let filtered_indices: Vec<usize> = entries
             .iter()
-            .filter(|e| {
-                if filter.is_empty() {
-                    true
-                } else {
-                    e.original_path
+            .enumerate()
+            .filter_map(|(idx, e)| {
+                if filter.is_empty()
+                    || e.original_path
                         .to_string_lossy()
                         .to_lowercase()
                         .contains(&filter.to_lowercase())
+                {
+                    Some(idx)
+                } else {
+                    None
                 }
             })
             .collect();
@@ -74,10 +80,11 @@ fn run_app(
                 ])
                 .split(f.area());
 
-            let total_size: u64 = filtered_entries.iter().map(|e| e.size).sum();
+            let total_size: u64 = filtered_indices.iter().map(|&idx| entries[idx].size).sum();
             let header_text = format!(
-                " 🗑️  TOSS — Trashed Items ({}) | Total Size: {}",
-                filtered_entries.len(),
+                " 🗑️  TOSS — Trashed Items ({}) | Selected: {} | Total Size: {}",
+                filtered_indices.len(),
+                selected_indices.len(),
                 format_size(total_size, BINARY)
             );
 
@@ -86,10 +93,17 @@ fn run_app(
                 .block(Block::default().borders(Borders::ALL));
             f.render_widget(header, chunks[0]);
 
-            let rows: Vec<Row> = filtered_entries
+            let rows: Vec<Row> = filtered_indices
                 .iter()
-                .map(|e| {
+                .map(|&idx| {
+                    let e = &entries[idx];
+                    let mark = if selected_indices.contains(&idx) {
+                        "[✓]"
+                    } else {
+                        "[ ]"
+                    };
                     Row::new(vec![
+                        mark.to_string(),
                         e.deleted_at.format("%Y-%m-%d %H:%M:%S").to_string(),
                         format_size(e.size, BINARY),
                         e.original_path.to_string_lossy().to_string(),
@@ -100,13 +114,14 @@ fn run_app(
             let table = Table::new(
                 rows,
                 [
+                    Constraint::Length(5),
                     Constraint::Length(20),
                     Constraint::Length(12),
                     Constraint::Min(30),
                 ],
             )
             .header(
-                Row::new(vec!["Date Trashed", "Size", "Original Path"])
+                Row::new(vec!["Sel", "Date Trashed", "Size", "Original Path"])
                     .style(ui::style_header()),
             )
             .block(Block::default().borders(Borders::ALL))
@@ -118,8 +133,7 @@ fn run_app(
                 format!(" Search: {} (Press Enter to confirm, Esc to clear)", filter)
             } else {
                 format!(
-                    " Press [/] Search | [q] Quit | [j/k] Navigate | Filter: '{}'",
-                    if filter.is_empty() { "None" } else { &filter }
+                    " [Space] Toggle | [r] Restore | [d] Delete | [/] Filter | [a] All | [q] Quit"
                 )
             };
 
@@ -154,12 +168,81 @@ fn run_app(
                     KeyCode::Char('/') => {
                         searching = true;
                     }
+                    KeyCode::Char(' ') => {
+                        if let Some(i) = state.selected() {
+                            if i < filtered_indices.len() {
+                                let real_idx = filtered_indices[i];
+                                if selected_indices.contains(&real_idx) {
+                                    selected_indices.remove(&real_idx);
+                                } else {
+                                    selected_indices.insert(real_idx);
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Char('a') => {
+                        if selected_indices.len() == filtered_indices.len() {
+                            selected_indices.clear();
+                        } else {
+                            selected_indices = filtered_indices.iter().copied().collect();
+                        }
+                    }
+                    KeyCode::Char('r') | KeyCode::Enter => {
+                        let to_restore: Vec<usize> = if !selected_indices.is_empty() {
+                            selected_indices.iter().copied().collect()
+                        } else if let Some(i) = state.selected() {
+                            if i < filtered_indices.len() {
+                                vec![filtered_indices[i]]
+                            } else {
+                                vec![]
+                            }
+                        } else {
+                            vec![]
+                        };
+
+                        for idx in to_restore {
+                            let entry = &entries[idx];
+                            restore_entry(entry, true)?;
+                        }
+
+                        *entries = trash::list_entries()?;
+                        selected_indices.clear();
+                        if entries.is_empty() {
+                            break;
+                        }
+                        state.select(Some(0));
+                    }
+                    KeyCode::Char('d') | KeyCode::Delete => {
+                        let to_delete: Vec<usize> = if !selected_indices.is_empty() {
+                            selected_indices.iter().copied().collect()
+                        } else if let Some(i) = state.selected() {
+                            if i < filtered_indices.len() {
+                                vec![filtered_indices[i]]
+                            } else {
+                                vec![]
+                            }
+                        } else {
+                            vec![]
+                        };
+
+                        for idx in to_delete {
+                            let entry = &entries[idx];
+                            delete_entry(entry)?;
+                        }
+
+                        *entries = trash::list_entries()?;
+                        selected_indices.clear();
+                        if entries.is_empty() {
+                            break;
+                        }
+                        state.select(Some(0));
+                    }
                     KeyCode::Down | KeyCode::Char('j') => {
                         let i = match state.selected() {
                             Some(i) => {
-                                if filtered_entries.is_empty() {
+                                if filtered_indices.is_empty() {
                                     0
-                                } else if i >= filtered_entries.len() - 1 {
+                                } else if i >= filtered_indices.len() - 1 {
                                     0
                                 } else {
                                     i + 1
@@ -172,10 +255,10 @@ fn run_app(
                     KeyCode::Up | KeyCode::Char('k') => {
                         let i = match state.selected() {
                             Some(i) => {
-                                if filtered_entries.is_empty() {
+                                if filtered_indices.is_empty() {
                                     0
                                 } else if i == 0 {
-                                    filtered_entries.len().saturating_sub(1)
+                                    filtered_indices.len().saturating_sub(1)
                                 } else {
                                     i - 1
                                 }
@@ -190,5 +273,35 @@ fn run_app(
         }
     }
 
+    Ok(())
+}
+
+fn restore_entry(entry: &TrashEntry, overwrite: bool) -> Result<()> {
+    let target = &entry.original_path;
+
+    if target.exists() && !overwrite {
+        return Ok(());
+    }
+
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::rename(&entry.trash_path, target)
+        .with_context(|| format!("Failed to restore to {}", target.display()))?;
+
+    let _ = fs::remove_file(&entry.info_path);
+    Ok(())
+}
+
+fn delete_entry(entry: &TrashEntry) -> Result<()> {
+    if entry.trash_path.exists() {
+        if entry.trash_path.is_dir() {
+            let _ = fs::remove_dir_all(&entry.trash_path);
+        } else {
+            let _ = fs::remove_file(&entry.trash_path);
+        }
+    }
+    let _ = fs::remove_file(&entry.info_path);
     Ok(())
 }

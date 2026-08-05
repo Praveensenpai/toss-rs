@@ -119,7 +119,8 @@ fn parse_trashinfo(info_path: &Path, files_dir: &Path) -> Result<TrashEntry> {
 
     for line in content.lines() {
         if let Some(val) = line.strip_prefix("Path=") {
-            original_path = Some(PathBuf::from(val));
+            let decoded = url_decode(val);
+            original_path = Some(PathBuf::from(decoded));
         }
         if let Some(val) = line.strip_prefix("DeletionDate=") {
             deleted_at = chrono::NaiveDateTime::parse_from_str(val, "%Y-%m-%dT%H:%M:%S")
@@ -149,6 +150,27 @@ fn parse_trashinfo(info_path: &Path, files_dir: &Path) -> Result<TrashEntry> {
         info_path: info_path.to_path_buf(),
         size,
     })
+}
+
+fn url_decode(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut bytes = input.bytes().peekable();
+
+    while let Some(b) = bytes.next() {
+        if b == b'%' {
+            let first = bytes.next();
+            let second = bytes.next();
+            if let (Some(f), Some(s)) = (first, second) {
+                let hex_str = format!("{}{}", f as char, s as char);
+                if let Ok(byte_val) = u8::from_str_radix(&hex_str, 16) {
+                    result.push(byte_val as char);
+                    continue;
+                }
+            }
+        }
+        result.push(b as char);
+    }
+    result
 }
 
 fn entry_size(path: &Path) -> u64 {
