@@ -41,12 +41,6 @@ jobs:
           else
             git log -n 10 --oneline --no-merges | sed 's/^[a-f0-9]* /* /' >> RELEASE_NOTES.md
           fi
-          echo "" >> RELEASE_NOTES.md
-          echo "---" >> RELEASE_NOTES.md
-          echo "### 🪄 Quick Installation" >> RELEASE_NOTES.md
-          echo '```bash' >> RELEASE_NOTES.md
-          echo 'curl -sSL https://raw.githubusercontent.com/Praveensenpai/toss-rs/main/install.sh | bash' >> RELEASE_NOTES.md
-          echo '```' >> RELEASE_NOTES.md
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
