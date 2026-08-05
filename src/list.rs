@@ -31,11 +31,21 @@ pub fn run() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let res = run_app(&mut terminal, &mut entries);
+    let mut restored_count = 0;
+    let mut deleted_count = 0;
+
+    let res = run_app(&mut terminal, &mut entries, &mut restored_count, &mut deleted_count);
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
+
+    if restored_count > 0 {
+        println!("✔ Restored {} item(s)", restored_count);
+    }
+    if deleted_count > 0 {
+        println!("🗑️ Permanently deleted {} item(s)", deleted_count);
+    }
 
     res
 }
@@ -43,6 +53,8 @@ pub fn run() -> Result<()> {
 fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     entries: &mut Vec<TrashEntry>,
+    restored_count: &mut usize,
+    deleted_count: &mut usize,
 ) -> Result<()> {
     let mut state = TableState::default();
     if !entries.is_empty() {
@@ -202,7 +214,9 @@ fn run_app(
 
                         for idx in to_restore {
                             let entry = &entries[idx];
-                            restore_entry(entry, true)?;
+                            if restore_entry(entry, true).is_ok() {
+                                *restored_count += 1;
+                            }
                         }
 
                         *entries = trash::list_entries()?;
@@ -227,7 +241,9 @@ fn run_app(
 
                         for idx in to_delete {
                             let entry = &entries[idx];
-                            delete_entry(entry)?;
+                            if delete_entry(entry).is_ok() {
+                                *deleted_count += 1;
+                            }
                         }
 
                         *entries = trash::list_entries()?;
