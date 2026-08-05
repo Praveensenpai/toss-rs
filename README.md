@@ -29,7 +29,7 @@
 Paste this into your terminal to install `toss` automatically:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Praveensenpai/toss-rs/main/install.sh | bash
+curl -sSL -H "Cache-Control: no-cache" https://raw.githubusercontent.com/Praveensenpai/toss-rs/main/install.sh | bash
 ```
 
 <br>

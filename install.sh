@@ -20,7 +20,7 @@ if [ "$ARCH" != "x86_64" ]; then
     exit 1
 fi
 
-TAG=$(curl -4 -sSL --connect-timeout 10 --retry 3 "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+TAG=$(curl -4 -sSL -H "Cache-Control: no-cache" -H "Pragma: no-cache" --connect-timeout 10 --retry 3 "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
 
 if [ -z "$TAG" ]; then
     echo "⚠️  No official release tag found. Building locally via Cargo..."
@@ -40,7 +40,7 @@ else
     trap 'rm -rf "$TMP_DIR"' EXIT
 
     echo "📥 Downloading toss $TAG..."
-    curl -4 -sSL --connect-timeout 10 --retry 3 "$DOWNLOAD_URL" | tar -xz -C "$TMP_DIR"
+    curl -4 -sSL -H "Cache-Control: no-cache" -H "Pragma: no-cache" --connect-timeout 10 --retry 3 "$DOWNLOAD_URL" | tar -xz -C "$TMP_DIR"
     install -m 755 "$TMP_DIR/toss" "$INSTALL_DIR/toss"
     echo "✔ Successfully installed toss to $INSTALL_DIR/toss!"
 fi
