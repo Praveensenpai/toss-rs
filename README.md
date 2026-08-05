@@ -1,0 +1,86 @@
+# 🗑️ toss (toss-rs)
+
+> **A blazing-fast, FreeDesktop.org-compliant Rust alternative to `trash-cli` with a beautiful TUI.**
+
+[![Rust](https://img.shields.io/badge/Language-Rust-orange.svg)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Ratatui](https://img.shields.io/badge/TUI-Ratatui-green.svg)](https://ratatui.rs)
+
+`toss` is a high-performance terminal utility that manages trashed files in compliance with the [FreeDesktop.org Trash Specification](https://specifications.freedesktop.org/trash-spec/trashspec-latest.html). It safely records original paths, deletion timestamps, and file sizes in `~/.local/share/Trash`.
+
+---
+
+## ⚡ Key Features
+
+- **⚡ Blazing Fast**: Written in pure Rust for instant execution and minimal resource usage.
+- **🖥️ Beautiful Interactive TUI**: Terminal user interface powered by [`ratatui`](https://ratatui.rs) and [`crossterm`](https://crates.io/crates/crossterm).
+- **🔍 Live Search & Filtering**: Press `/` in the list view to search trashed files on-the-fly.
+- **♻️ Interactive Multi-Select Restore**: Easily toggle files with `Space` and restore them to their original location.
+- **🧹 Age-Based Purging**: Clear items older than N days with `toss empty <days>`.
+- **🎯 Glob Pattern Matching**: Remove specific items from trash using patterns with `toss rm "*.log"`.
+- **🛡️ 100% FreeDesktop Compliant**: Fully compatible with GNOME, KDE, XFCE, and other standard desktop environments.
+
+---
+
+## 🚀 Quick Start
+
+### 🪄 One-Liner Magic (Recommended)
+
+Paste this into your terminal to install `toss` automatically:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Praveensenpai/toss-rs/main/install.sh | bash
+```
+
+<br>
+
+### 🛠️ Building From Source
+
+```bash
+git clone https://github.com/Praveensenpai/toss-rs.git
+cd toss-rs
+cargo build --release
+install -Dm 755 target/release/toss ~/.local/bin/toss
+```
+
+---
+
+## 📖 Usage
+
+### Commands
+
+| Command | Description |
+| :--- | :--- |
+| `toss put <files>` | Move files or directories to the trashcan |
+| `toss list` / `toss` | Open interactive TUI to browse trashed files |
+| `toss restore` | Open interactive multi-select TUI to restore files |
+| `toss restore --overwrite` | Restore files and overwrite existing files if present |
+| `toss empty` | Permanently delete all trashed files |
+| `toss empty 7` | Empty files trashed more than 7 days ago |
+| `toss rm "*.o"` | Delete trashed items matching a glob pattern |
+
+### TUI Keybindings
+
+- **`j` / `k` or `↓` / `↑`**: Navigate through entries
+- **`/`**: Live search & filter
+- **`Space`**: Toggle selection (in `restore` view)
+- **`a`**: Select all / Deselect all
+- **`Enter`**: Confirm action
+- **`q` or `Esc`**: Quit / Close
+
+---
+
+## 🛠️ Architecture & Tech Stack
+
+| Component | Technology | Description |
+| :--- | :--- | :--- |
+| **Language** | Rust 2021 | Native speed & safety |
+| **TUI Engine** | [`ratatui`](https://ratatui.rs) & `crossterm` | Terminal layout, tables, and event handling |
+| **CLI Parser** | [`clap`](https://crates.io/crates/clap) | Subcommands and flags |
+| **Trash Spec** | `std::fs` & `chrono` | `.trashinfo` metadata generation & parsing |
+
+---
+
+## 📜 License
+
+Distributed under the [MIT License](LICENSE).
