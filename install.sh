@@ -45,9 +45,6 @@ else
     echo "✔ Successfully installed toss to $INSTALL_DIR/toss!"
 fi
 
-# Detect active login shell from $SHELL
-USER_SHELL="$(basename "${SHELL:-zsh}")"
-
 # Automatic Shell Completion Installation
 echo "⚡ Deploying automatic shell completions..."
 
@@ -71,37 +68,44 @@ mkdir -p "$FISH_COMP_DIR"
 
 echo "✔ Autocompletions installed for Zsh, Bash, and Fish!"
 
-# Determine config file for active shell
-CONFIG_FILE=""
-case "$USER_SHELL" in
-    zsh)  CONFIG_FILE="$HOME/.zshrc" ;;
-    bash) CONFIG_FILE="$HOME/.bashrc" ;;
-    fish) CONFIG_FILE="$HOME/.config/fish/config.fish" ;;
-esac
+# Check for existing rm alias across all user shell config files
+FOUND_ALIASES=""
+TARGET_FILES=()
+
+for CFG in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.config/fish/config.fish"; do
+    if [ -f "$CFG" ]; then
+        TARGET_FILES+=("$CFG")
+        LINE=$(grep -E "^\s*alias rm=" "$CFG" || true)
+        if [ -n "$LINE" ]; then
+            FOUND_ALIASES="${FOUND_ALIASES}   $CFG -> $LINE\n"
+        fi
+    fi
+done
 
 # Interactive Alias Setup
 if [ -t 0 ] || [ -c /dev/tty ]; then
     TTY_DEV="/dev/tty"
     echo ""
-    if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-        EXISTING_ALIAS=$(grep -E "^\s*alias rm=" "$CONFIG_FILE" || true)
-        if [ -n "$EXISTING_ALIAS" ]; then
-            echo "⚠️  Existing alias found in $CONFIG_FILE:"
-            echo "   $EXISTING_ALIAS"
-            read -r -p "❓ Do you want to overwrite it with 'alias rm=\"toss put\"'? (y/N): " OVERWRITE_REPLY < "$TTY_DEV" || OVERWRITE_REPLY="n"
-            if [[ "$OVERWRITE_REPLY" =~ ^[Yy]$ ]]; then
-                sed -i '/^\s*alias rm=/d' "$CONFIG_FILE"
-                echo "alias rm='toss put'" >> "$CONFIG_FILE"
-                echo "✔ Updated 'alias rm=\"toss put\"' in $CONFIG_FILE"
-            else
-                echo "ℹ️  Kept existing alias."
-            fi
+    if [ -n "$FOUND_ALIASES" ]; then
+        echo "⚠️  Existing 'rm' alias found in your shell config(s):"
+        echo -e "$FOUND_ALIASES"
+        read -r -p "❓ Do you want to overwrite with 'alias rm=\"toss put\"'? (y/N): " OVERWRITE_REPLY < "$TTY_DEV" || OVERWRITE_REPLY="n"
+        if [[ "$OVERWRITE_REPLY" =~ ^[Yy]$ ]]; then
+            for CFG in "${TARGET_FILES[@]}"; do
+                sed -i '/^\s*alias rm=/d' "$CFG"
+                echo "alias rm='toss put'" >> "$CFG"
+                echo "✔ Updated 'alias rm=\"toss put\"' in $CFG"
+            done
         else
-            read -r -p "❓ Do you want to alias 'rm' to 'toss put' in $USER_SHELL? (y/N): " ALIAS_REPLY < "$TTY_DEV" || ALIAS_REPLY="n"
-            if [[ "$ALIAS_REPLY" =~ ^[Yy]$ ]]; then
-                echo "alias rm='toss put'" >> "$CONFIG_FILE"
-                echo "✔ Added 'alias rm=\"toss put\"' to $CONFIG_FILE"
-            fi
+            echo "ℹ️  Kept existing alias."
+        fi
+    else
+        read -r -p "❓ Do you want to alias 'rm' to 'toss put' in your shell config(s)? (y/N): " ALIAS_REPLY < "$TTY_DEV" || ALIAS_REPLY="n"
+        if [[ "$ALIAS_REPLY" =~ ^[Yy]$ ]]; then
+            for CFG in "${TARGET_FILES[@]}"; do
+                echo "alias rm='toss put'" >> "$CFG"
+                echo "✔ Added 'alias rm=\"toss put\"' to $CFG"
+            done
         fi
     fi
 fi
