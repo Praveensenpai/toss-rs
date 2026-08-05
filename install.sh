@@ -45,6 +45,9 @@ else
     echo "✔ Successfully installed toss to $INSTALL_DIR/toss!"
 fi
 
+# Detect active shell
+CURRENT_SHELL="$(basename "${SHELL:-bash}")"
+
 # Automatic Shell Completion Installation
 echo "⚡ Deploying automatic shell completions..."
 
@@ -68,24 +71,36 @@ mkdir -p "$FISH_COMP_DIR"
 
 echo "✔ Autocompletions installed for Zsh, Bash, and Fish!"
 
-# Optional Interactive Alias Setup
+# Optional Interactive Alias Setup targeting the active shell
 if [ -t 0 ] || [ -c /dev/tty ]; then
     TTY_DEV="/dev/tty"
     echo ""
-    read -r -p "❓ Do you want to alias 'rm' to 'toss put'? (y/N): " ALIAS_REPLY < "$TTY_DEV" || ALIAS_REPLY="n"
+    read -r -p "❓ Do you want to alias 'rm' to 'toss put' in your active shell ($CURRENT_SHELL)? (y/N): " ALIAS_REPLY < "$TTY_DEV" || ALIAS_REPLY="n"
     if [[ "$ALIAS_REPLY" =~ ^[Yy]$ ]]; then
-        if [ -f "$HOME/.zshrc" ] && ! grep -q "alias rm=" "$HOME/.zshrc"; then
-            echo "alias rm='toss put'" >> "$HOME/.zshrc"
-            echo "✔ Added 'alias rm=\"toss put\"' to ~/.zshrc"
-        fi
-        if [ -f "$HOME/.bashrc" ] && ! grep -q "alias rm=" "$HOME/.bashrc"; then
-            echo "alias rm='toss put'" >> "$HOME/.bashrc"
-            echo "✔ Added 'alias rm=\"toss put\"' to ~/.bashrc"
-        fi
-        if [ -f "$HOME/.config/fish/config.fish" ] && ! grep -q "alias rm=" "$HOME/.config/fish/config.fish"; then
-            echo "alias rm='toss put'" >> "$HOME/.config/fish/config.fish"
-            echo "✔ Added 'alias rm=\"toss put\"' to ~/.config/fish/config.fish"
-        fi
+        case "$CURRENT_SHELL" in
+            zsh)
+                if [ -f "$HOME/.zshrc" ] && ! grep -q "alias rm=" "$HOME/.zshrc"; then
+                    echo "alias rm='toss put'" >> "$HOME/.zshrc"
+                    echo "✔ Added 'alias rm=\"toss put\"' to ~/.zshrc"
+                fi
+                ;;
+            bash)
+                if [ -f "$HOME/.bashrc" ] && ! grep -q "alias rm=" "$HOME/.bashrc"; then
+                    echo "alias rm='toss put'" >> "$HOME/.bashrc"
+                    echo "✔ Added 'alias rm=\"toss put\"' to ~/.bashrc"
+                fi
+                ;;
+            fish)
+                mkdir -p "$HOME/.config/fish"
+                if ! grep -q "alias rm=" "$HOME/.config/fish/config.fish" 2>/dev/null; then
+                    echo "alias rm='toss put'" >> "$HOME/.config/fish/config.fish"
+                    echo "✔ Added 'alias rm=\"toss put\"' to ~/.config/fish/config.fish"
+                fi
+                ;;
+            *)
+                echo "⚠️ Unknown shell '$CURRENT_SHELL'. Please manually add 'alias rm=\"toss put\"' to your shell profile."
+                ;;
+        esac
     fi
 fi
 
