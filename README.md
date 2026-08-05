@@ -68,6 +68,29 @@ mkdir -p ~/.config/fish/completions
 toss completions fish > ~/.config/fish/completions/toss.fish
 ```
 
+<br>
+
+### ⚠️ Aliasing `rm` to `toss put` (Optional)
+
+If you want `rm` to safely move files to trash instead of permanently unlinking them:
+
+#### **Zsh** (`~/.zshrc`)
+```zsh
+alias rm='toss put'
+```
+
+#### **Bash** (`~/.bashrc`)
+```bash
+alias rm='toss put'
+```
+
+#### **Fish** (`~/.config/fish/config.fish`)
+```fish
+alias rm='toss put'
+```
+
+> **Note**: To bypass the alias and use standard `rm`, invoke `\rm` or `/bin/rm`.
+
 ---
 
 ## 📖 Usage

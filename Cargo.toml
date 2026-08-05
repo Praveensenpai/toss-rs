@@ -1,6 +1,6 @@
 [package]
 name = "toss"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 description = "A fast, beautiful TUI trash manager — FreeDesktop.org compliant"
 authors = ["Praveensenpai"]
