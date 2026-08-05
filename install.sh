@@ -29,25 +29,44 @@ if [ -z "$TAG" ]; then
         mkdir -p "$INSTALL_DIR"
         install -m 755 target/release/toss "$INSTALL_DIR/toss"
         echo "✔ Installed toss to $INSTALL_DIR/toss!"
-        exit 0
     else
         echo "❌ Cargo is not installed. Please install Rust/Cargo."
         exit 1
     fi
+else
+    DOWNLOAD_URL="https://github.com/$REPO/releases/download/$TAG/toss-x86_64-unknown-linux-gnu.tar.gz"
+    mkdir -p "$INSTALL_DIR"
+    TMP_DIR=$(mktemp -d)
+    trap 'rm -rf "$TMP_DIR"' EXIT
+
+    echo "📥 Downloading toss $TAG..."
+    curl -4 -sSL --connect-timeout 10 --retry 3 "$DOWNLOAD_URL" | tar -xz -C "$TMP_DIR"
+    install -m 755 "$TMP_DIR/toss" "$INSTALL_DIR/toss"
+    echo "✔ Successfully installed toss to $INSTALL_DIR/toss!"
 fi
 
-DOWNLOAD_URL="https://github.com/$REPO/releases/download/$TAG/toss-x86_64-unknown-linux-gnu.tar.gz"
+# Automatic Shell Completion Installation
+echo "⚡ Deploying automatic shell completions..."
 
-mkdir -p "$INSTALL_DIR"
-TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
+# Zsh completions
+ZSH_COMP_DIR="$HOME/.local/share/zsh/site-functions"
+mkdir -p "$ZSH_COMP_DIR"
+"$INSTALL_DIR/toss" completions zsh > "$ZSH_COMP_DIR/_toss"
+if [ -f "$HOME/.zshrc" ] && ! grep -q "zsh/site-functions" "$HOME/.zshrc"; then
+    echo -e "\nfpath=(\$HOME/.local/share/zsh/site-functions \$fpath)" >> "$HOME/.zshrc"
+fi
 
-echo "📥 Downloading toss $TAG..."
-curl -4 -sSL --connect-timeout 10 --retry 3 "$DOWNLOAD_URL" | tar -xz -C "$TMP_DIR"
+# Bash completions
+BASH_COMP_DIR="$HOME/.local/share/bash-completion/completions"
+mkdir -p "$BASH_COMP_DIR"
+"$INSTALL_DIR/toss" completions bash > "$BASH_COMP_DIR/toss"
 
-install -m 755 "$TMP_DIR/toss" "$INSTALL_DIR/toss"
+# Fish completions
+FISH_COMP_DIR="$HOME/.config/fish/completions"
+mkdir -p "$FISH_COMP_DIR"
+"$INSTALL_DIR/toss" completions fish > "$FISH_COMP_DIR/toss.fish"
 
-echo "✔ Successfully installed toss to $INSTALL_DIR/toss!"
+echo "✔ Autocompletions installed for Zsh, Bash, and Fish!"
 
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     echo "⚠️  Note: $INSTALL_DIR is not in your PATH."
