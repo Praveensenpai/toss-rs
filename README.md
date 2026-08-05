@@ -72,21 +72,21 @@ toss completions fish > ~/.config/fish/completions/toss.fish
 
 ### ⚠️ Aliasing `rm` to `toss put` (Optional)
 
-If you want `rm` to safely move files to trash instead of permanently unlinking them:
+If you want `rm` to safely move files to trash instead of permanently unlinking them, run the one-liner for your shell:
 
-#### **Zsh** (`~/.zshrc`)
+#### **Zsh**
 ```zsh
-alias rm='toss put'
+echo "alias rm='toss put'" >> ~/.zshrc
 ```
 
-#### **Bash** (`~/.bashrc`)
+#### **Bash**
 ```bash
-alias rm='toss put'
+echo "alias rm='toss put'" >> ~/.bashrc
 ```
 
-#### **Fish** (`~/.config/fish/config.fish`)
+#### **Fish**
 ```fish
-alias rm='toss put'
+echo "alias rm='toss put'" >> ~/.config/fish/config.fish
 ```
 
 > **Note**: To bypass the alias and use standard `rm`, invoke `\rm` or `/bin/rm`.
