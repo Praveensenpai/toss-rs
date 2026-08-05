@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Ratatui](https://img.shields.io/badge/TUI-Ratatui-green.svg)](https://ratatui.rs)
 
-`toss` is a high-performance terminal utility that manages trashed files in compliance with the [FreeDesktop.org Trash Specification](https://specifications.freedesktop.org/trash-spec/trashspec-latest.html). It safely records original paths, deletion timestamps, and file sizes in `~/.local/share/Trash`.
+`toss` is a high-performance terminal utility that manages trashed files in compliance with the FreeDesktop.org Trash Specification. It safely records original paths, deletion timestamps, and file sizes in `~/.local/share/Trash`.
 
 ---
 
