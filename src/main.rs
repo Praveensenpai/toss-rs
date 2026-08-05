@@ -6,7 +6,9 @@ mod trash;
 mod ui;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
+use std::io;
 
 #[derive(Parser)]
 #[command(
@@ -16,6 +18,10 @@ use clap::{Parser, Subcommand};
     long_about = "toss — FreeDesktop.org compliant trash CLI with a beautiful TUI.\nPut, list, restore, empty, or remove trashed files."
 )]
 struct Cli {
+    /// Print version information
+    #[arg(short = 'v', action = clap::ArgAction::Version)]
+    version_flag: Option<bool>,
+
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -24,6 +30,7 @@ struct Cli {
 enum Command {
     /// Move files or directories to the trash
     Put {
+        /// Files or directories to trash
         #[arg(required = true)]
         files: Vec<String>,
     },
@@ -45,6 +52,12 @@ enum Command {
         /// Glob pattern, e.g. "*.log"
         pattern: String,
     },
+    /// Generate shell autocompletions (bash, zsh, fish, powershell, elvish)
+    Completions {
+        /// Target shell
+        #[arg(value_enum)]
+        shell: Shell,
+    },
 }
 
 fn main() -> Result<()> {
@@ -55,6 +68,11 @@ fn main() -> Result<()> {
         Some(Command::Restore { overwrite }) => restore::run(overwrite),
         Some(Command::Empty { days }) => empty::run(days),
         Some(Command::Rm { pattern }) => remove::run(&pattern),
+        Some(Command::Completions { shell }) => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "toss", &mut io::stdout());
+            Ok(())
+        }
         None => list::run(),
     }
 }

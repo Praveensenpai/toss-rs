@@ -1,0 +1,218 @@
+#compdef toss
+
+autoload -U is-at-least
+
+_toss() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'-v[Print version information]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'-V[Print version]' \
+'--version[Print version]' \
+":: :_toss_commands" \
+"*::: :->toss" \
+&& ret=0
+    case $state in
+    (toss)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:toss-command-$line[1]:"
+        case $line[1] in
+            (put)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::files -- Files or directories to trash:_default' \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(restore)
+_arguments "${_arguments_options[@]}" : \
+'--overwrite[Overwrite existing files at original path]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(empty)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+'::days -- Delete files older than this many days:_default' \
+&& ret=0
+;;
+(rm)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':pattern -- Glob pattern, e.g. "*.log":_default' \
+&& ret=0
+;;
+(completions)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':shell -- Target shell:(bash elvish fish powershell zsh)' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_toss__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:toss-help-command-$line[1]:"
+        case $line[1] in
+            (put)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(restore)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(empty)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(rm)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(completions)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+}
+
+(( $+functions[_toss_commands] )) ||
+_toss_commands() {
+    local commands; commands=(
+'put:Move files or directories to the trash' \
+'list:Browse trashed files in a TUI' \
+'restore:Interactively restore trashed files via TUI' \
+'empty:Empty the trash (optionally only files older than N days)' \
+'rm:Remove trashed files matching a glob pattern' \
+'completions:Generate shell autocompletions (bash, zsh, fish, powershell, elvish)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'toss commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__completions_commands] )) ||
+_toss__subcmd__completions_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss completions commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__empty_commands] )) ||
+_toss__subcmd__empty_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss empty commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__help_commands] )) ||
+_toss__subcmd__help_commands() {
+    local commands; commands=(
+'put:Move files or directories to the trash' \
+'list:Browse trashed files in a TUI' \
+'restore:Interactively restore trashed files via TUI' \
+'empty:Empty the trash (optionally only files older than N days)' \
+'rm:Remove trashed files matching a glob pattern' \
+'completions:Generate shell autocompletions (bash, zsh, fish, powershell, elvish)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'toss help commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__help__subcmd__completions_commands] )) ||
+_toss__subcmd__help__subcmd__completions_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss help completions commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__help__subcmd__empty_commands] )) ||
+_toss__subcmd__help__subcmd__empty_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss help empty commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__help__subcmd__help_commands] )) ||
+_toss__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss help help commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__help__subcmd__list_commands] )) ||
+_toss__subcmd__help__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss help list commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__help__subcmd__put_commands] )) ||
+_toss__subcmd__help__subcmd__put_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss help put commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__help__subcmd__restore_commands] )) ||
+_toss__subcmd__help__subcmd__restore_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss help restore commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__help__subcmd__rm_commands] )) ||
+_toss__subcmd__help__subcmd__rm_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss help rm commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__list_commands] )) ||
+_toss__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss list commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__put_commands] )) ||
+_toss__subcmd__put_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss put commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__restore_commands] )) ||
+_toss__subcmd__restore_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss restore commands' commands "$@"
+}
+(( $+functions[_toss__subcmd__rm_commands] )) ||
+_toss__subcmd__rm_commands() {
+    local commands; commands=()
+    _describe -t commands 'toss rm commands' commands "$@"
+}
+
+if [ "$funcstack[1]" = "_toss" ]; then
+    _toss "$@"
+else
+    compdef _toss toss
+fi
