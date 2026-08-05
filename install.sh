@@ -45,8 +45,8 @@ else
     echo "✔ Successfully installed toss to $INSTALL_DIR/toss!"
 fi
 
-# Detect active shell
-CURRENT_SHELL="$(basename "${SHELL:-bash}")"
+# Detect active login shell from $SHELL
+USER_SHELL="$(basename "${SHELL:-zsh}")"
 
 # Automatic Shell Completion Installation
 echo "⚡ Deploying automatic shell completions..."
@@ -71,36 +71,38 @@ mkdir -p "$FISH_COMP_DIR"
 
 echo "✔ Autocompletions installed for Zsh, Bash, and Fish!"
 
-# Optional Interactive Alias Setup targeting the active shell
+# Determine config file for active shell
+CONFIG_FILE=""
+case "$USER_SHELL" in
+    zsh)  CONFIG_FILE="$HOME/.zshrc" ;;
+    bash) CONFIG_FILE="$HOME/.bashrc" ;;
+    fish) CONFIG_FILE="$HOME/.config/fish/config.fish" ;;
+esac
+
+# Interactive Alias Setup
 if [ -t 0 ] || [ -c /dev/tty ]; then
     TTY_DEV="/dev/tty"
     echo ""
-    read -r -p "❓ Do you want to alias 'rm' to 'toss put' in your active shell ($CURRENT_SHELL)? (y/N): " ALIAS_REPLY < "$TTY_DEV" || ALIAS_REPLY="n"
-    if [[ "$ALIAS_REPLY" =~ ^[Yy]$ ]]; then
-        case "$CURRENT_SHELL" in
-            zsh)
-                if [ -f "$HOME/.zshrc" ] && ! grep -q "alias rm=" "$HOME/.zshrc"; then
-                    echo "alias rm='toss put'" >> "$HOME/.zshrc"
-                    echo "✔ Added 'alias rm=\"toss put\"' to ~/.zshrc"
-                fi
-                ;;
-            bash)
-                if [ -f "$HOME/.bashrc" ] && ! grep -q "alias rm=" "$HOME/.bashrc"; then
-                    echo "alias rm='toss put'" >> "$HOME/.bashrc"
-                    echo "✔ Added 'alias rm=\"toss put\"' to ~/.bashrc"
-                fi
-                ;;
-            fish)
-                mkdir -p "$HOME/.config/fish"
-                if ! grep -q "alias rm=" "$HOME/.config/fish/config.fish" 2>/dev/null; then
-                    echo "alias rm='toss put'" >> "$HOME/.config/fish/config.fish"
-                    echo "✔ Added 'alias rm=\"toss put\"' to ~/.config/fish/config.fish"
-                fi
-                ;;
-            *)
-                echo "⚠️ Unknown shell '$CURRENT_SHELL'. Please manually add 'alias rm=\"toss put\"' to your shell profile."
-                ;;
-        esac
+    if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+        EXISTING_ALIAS=$(grep -E "^\s*alias rm=" "$CONFIG_FILE" || true)
+        if [ -n "$EXISTING_ALIAS" ]; then
+            echo "⚠️  Existing alias found in $CONFIG_FILE:"
+            echo "   $EXISTING_ALIAS"
+            read -r -p "❓ Do you want to overwrite it with 'alias rm=\"toss put\"'? (y/N): " OVERWRITE_REPLY < "$TTY_DEV" || OVERWRITE_REPLY="n"
+            if [[ "$OVERWRITE_REPLY" =~ ^[Yy]$ ]]; then
+                sed -i '/^\s*alias rm=/d' "$CONFIG_FILE"
+                echo "alias rm='toss put'" >> "$CONFIG_FILE"
+                echo "✔ Updated 'alias rm=\"toss put\"' in $CONFIG_FILE"
+            else
+                echo "ℹ️  Kept existing alias."
+            fi
+        else
+            read -r -p "❓ Do you want to alias 'rm' to 'toss put' in $USER_SHELL? (y/N): " ALIAS_REPLY < "$TTY_DEV" || ALIAS_REPLY="n"
+            if [[ "$ALIAS_REPLY" =~ ^[Yy]$ ]]; then
+                echo "alias rm='toss put'" >> "$CONFIG_FILE"
+                echo "✔ Added 'alias rm=\"toss put\"' to $CONFIG_FILE"
+            fi
+        fi
     fi
 fi
 
