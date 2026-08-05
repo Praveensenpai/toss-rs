@@ -43,6 +43,31 @@ cargo build --release
 install -Dm 755 target/release/toss ~/.local/bin/toss
 ```
 
+<br>
+
+### ⚡ Manual Shell Autocompletions Setup
+
+If installing manually from source or via `cargo install`, generate and install autocompletions for your shell:
+
+#### **Zsh**
+```zsh
+mkdir -p ~/.local/share/zsh/site-functions
+toss completions zsh > ~/.local/share/zsh/site-functions/_toss
+echo 'fpath=(~/.local/share/zsh/site-functions $fpath)' >> ~/.zshrc
+```
+
+#### **Bash**
+```bash
+mkdir -p ~/.local/share/bash-completion/completions
+toss completions bash > ~/.local/share/bash-completion/completions/toss
+```
+
+#### **Fish**
+```fish
+mkdir -p ~/.config/fish/completions
+toss completions fish > ~/.config/fish/completions/toss.fish
+```
+
 ---
 
 ## 📖 Usage
