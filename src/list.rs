@@ -66,6 +66,7 @@ fn run_app(
     let mut searching = false;
     let mut selected_indices: HashSet<usize> = HashSet::new();
     let mut feedback: Option<(String, FeedbackKind, Instant)> = None;
+    let mut visual_anchor: Option<usize> = None;
 
     loop {
         if let Some((_, _, time)) = &feedback {
@@ -102,33 +103,72 @@ fn run_app(
                 .split(f.area());
 
             let total_size: u64 = filtered_indices.iter().map(|&idx| entries[idx].size).sum();
-            let header_text = format!(
-                " 🗑️  TOSS — Trashed Items ({}) | Selected: {} | Total Size: {}",
-                filtered_indices.len(),
-                selected_indices.len(),
-                format_size(total_size, BINARY)
-            );
+            let header_spans = if visual_anchor.is_some() {
+                vec![
+                    Span::styled(
+                        format!(
+                            " 🗑️  TOSS — Trashed Items ({}) | Selected: {} | Total Size: {}",
+                            filtered_indices.len(),
+                            selected_indices.len(),
+                            format_size(total_size, BINARY)
+                        ),
+                        ui::style_header(),
+                    ),
+                    Span::raw("   "),
+                    Span::styled(" [VISUAL RANGE] ", ui::style_selected()),
+                ]
+            } else {
+                vec![Span::styled(
+                    format!(
+                        " 🗑️  TOSS — Trashed Items ({}) | Selected: {} | Total Size: {}",
+                        filtered_indices.len(),
+                        selected_indices.len(),
+                        format_size(total_size, BINARY)
+                    ),
+                    ui::style_header(),
+                )]
+            };
 
-            let header = Paragraph::new(header_text)
-                .style(ui::style_header())
+            let header = Paragraph::new(Line::from(header_spans))
                 .block(Block::default().borders(Borders::ALL));
             f.render_widget(header, chunks[0]);
 
+            let cur_selected = state.selected().unwrap_or(0);
             let rows: Vec<Row> = filtered_indices
                 .iter()
-                .map(|&idx| {
-                    let e = &entries[idx];
-                    let mark = if selected_indices.contains(&idx) {
+                .enumerate()
+                .map(|(list_pos, &real_idx)| {
+                    let e = &entries[real_idx];
+                    let in_visual = if let Some(anchor) = visual_anchor {
+                        let start = anchor.min(cur_selected);
+                        let end = anchor.max(cur_selected);
+                        list_pos >= start && list_pos <= end
+                    } else {
+                        false
+                    };
+
+                    let mark = if selected_indices.contains(&real_idx) || in_visual {
                         "[✓]"
                     } else {
                         "[ ]"
                     };
-                    Row::new(vec![
+
+                    let mut row = Row::new(vec![
                         mark.to_string(),
                         e.deleted_at.format("%Y-%m-%d %H:%M:%S").to_string(),
                         format_size(e.size, BINARY),
                         e.original_path.to_string_lossy().to_string(),
-                    ])
+                    ]);
+
+                    if in_visual {
+                        row = row.style(
+                            ratatui::style::Style::default()
+                                .fg(ratatui::style::Color::Cyan)
+                                .add_modifier(ratatui::style::Modifier::BOLD),
+                        );
+                    }
+
+                    row
                 })
                 .collect();
 
@@ -173,9 +213,18 @@ fn run_app(
                     Span::styled("[Enter] Done | [Esc] Clear", ui::style_dimmed()),
                 ];
                 Paragraph::new(Line::from(spans)).block(Block::default().borders(Borders::ALL))
+            } else if visual_anchor.is_some() {
+                let spans = vec![
+                    Span::styled(" [VISUAL] ", ui::style_selected()),
+                    Span::styled(
+                        " [j/k] Select Range | [v/Esc] Exit Visual | [r] Restore | [d] Delete | [q] Quit",
+                        ui::style_dimmed(),
+                    ),
+                ];
+                Paragraph::new(Line::from(spans)).block(Block::default().borders(Borders::ALL))
             } else {
                 Paragraph::new(
-                    " [Space/Enter] Toggle | [r] Restore | [d] Delete | [/] Filter | [a] All | [q] Quit",
+                    " [Space/Enter] Toggle | [v] Visual | [r] Restore | [d] Delete | [/] Filter | [a] All | [q] Quit",
                 )
                 .style(ui::style_dimmed())
                 .block(Block::default().borders(Borders::ALL))
@@ -245,11 +294,43 @@ fn run_app(
                 }
             } else {
                 match key.code {
+                    KeyCode::Esc if visual_anchor.is_some() => {
+                        visual_anchor = None;
+                        feedback = Some((
+                            format!("Exited visual mode ({} selected)", selected_indices.len()),
+                            FeedbackKind::Info,
+                            Instant::now(),
+                        ));
+                    }
                     KeyCode::Char('q') | KeyCode::Esc => break,
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break,
                     KeyCode::Char('/') => {
                         searching = true;
+                        visual_anchor = None;
                         feedback = None;
+                    }
+                    KeyCode::Char('v') => {
+                        if visual_anchor.is_none() {
+                            if let Some(i) = state.selected() {
+                                if i < filtered_indices.len() {
+                                    visual_anchor = Some(i);
+                                    selected_indices.insert(filtered_indices[i]);
+                                    feedback = Some((
+                                        "VISUAL MODE: Move with j/k to select range, v/Esc to exit"
+                                            .to_string(),
+                                        FeedbackKind::Info,
+                                        Instant::now(),
+                                    ));
+                                }
+                            }
+                        } else {
+                            visual_anchor = None;
+                            feedback = Some((
+                                format!("Selected {} item(s)", selected_indices.len()),
+                                FeedbackKind::Info,
+                                Instant::now(),
+                            ));
+                        }
                     }
                     KeyCode::Char(' ') | KeyCode::Enter => {
                         if let Some(i) = state.selected() {
@@ -341,6 +422,7 @@ fn run_app(
 
                         *entries = trash::list_entries()?;
                         selected_indices.clear();
+                        visual_anchor = None;
                         if entries.is_empty() {
                             break;
                         }
@@ -412,6 +494,7 @@ fn run_app(
 
                         *entries = trash::list_entries()?;
                         selected_indices.clear();
+                        visual_anchor = None;
                         if entries.is_empty() {
                             break;
                         }
@@ -431,6 +514,15 @@ fn run_app(
                             None => 0,
                         };
                         state.select(Some(i));
+                        if let Some(anchor) = visual_anchor {
+                            let start = anchor.min(i);
+                            let end = anchor.max(i);
+                            for idx in start..=end {
+                                if idx < filtered_indices.len() {
+                                    selected_indices.insert(filtered_indices[idx]);
+                                }
+                            }
+                        }
                     }
                     KeyCode::Up | KeyCode::Char('k') => {
                         let i = match state.selected() {
@@ -446,6 +538,15 @@ fn run_app(
                             None => 0,
                         };
                         state.select(Some(i));
+                        if let Some(anchor) = visual_anchor {
+                            let start = anchor.min(i);
+                            let end = anchor.max(i);
+                            for idx in start..=end {
+                                if idx < filtered_indices.len() {
+                                    selected_indices.insert(filtered_indices[idx]);
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }

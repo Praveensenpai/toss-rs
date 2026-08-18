@@ -112,6 +112,7 @@ echo "alias rm='toss put'" >> ~/.config/fish/config.fish
 - **`j` / `k` or `↓` / `↑`**: Navigate through entries
 - **`/`**: Live search & filter
 - **`Space` / `Enter`**: Toggle selection
+- **`v`**: Visual range mode (auto-selects rows as you navigate with `j`/`k`)
 - **`r`**: Restore selected / highlighted items
 - **`d`**: Permanently delete selected / highlighted items
 - **`a`**: Select all / Deselect all
