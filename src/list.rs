@@ -1,5 +1,5 @@
 use crate::trash::{self, TrashEntry};
-use crate::ui;
+use crate::ui::{self, FeedbackKind};
 use anyhow::{Context, Result};
 use crossterm::{
     event::{self, Event, KeyCode, KeyModifiers},
@@ -10,12 +10,14 @@ use humansize::{format_size, BINARY};
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    widgets::{Block, Borders, Paragraph, Row, Table, TableState},
+    text::{Line, Span},
+    widgets::{Block, Borders, Clear, Paragraph, Row, Table, TableState},
     Terminal,
 };
 use std::collections::HashSet;
 use std::fs;
 use std::io;
+use std::time::{Duration, Instant};
 
 pub fn run() -> Result<()> {
     let mut entries = trash::list_entries()?;
@@ -63,8 +65,15 @@ fn run_app(
     let mut filter = String::new();
     let mut searching = false;
     let mut selected_indices: HashSet<usize> = HashSet::new();
+    let mut feedback: Option<(String, FeedbackKind, Instant)> = None;
 
     loop {
+        if let Some((_, _, time)) = &feedback {
+            if time.elapsed() >= Duration::from_secs(3) {
+                feedback = None;
+            }
+        }
+
         let filtered_indices: Vec<usize> = entries
             .iter()
             .enumerate()
@@ -141,21 +150,82 @@ fn run_app(
 
             f.render_stateful_widget(table, chunks[1], &mut state);
 
-            let status_text = if searching {
-                format!(" Search: {} (Press Enter to confirm, Esc to clear)", filter)
+            let footer = if searching {
+                let match_count = filtered_indices.len();
+                let spans = vec![
+                    Span::styled(" 🔍 Search: ", ui::style_header()),
+                    Span::styled(
+                        if filter.is_empty() {
+                            "type to filter..."
+                        } else {
+                            &filter
+                        },
+                        ui::style_warn(),
+                    ),
+                    Span::styled(
+                        format!(
+                            " ({} match{}) ",
+                            match_count,
+                            if match_count == 1 { "" } else { "es" }
+                        ),
+                        ui::style_dimmed(),
+                    ),
+                    Span::styled("[Enter] Done | [Esc] Clear", ui::style_dimmed()),
+                ];
+                Paragraph::new(Line::from(spans)).block(Block::default().borders(Borders::ALL))
             } else {
-                format!(
-                    " [Space] Toggle | [r] Restore | [d] Delete | [/] Filter | [a] All | [q] Quit"
+                Paragraph::new(
+                    " [Space/Enter] Toggle | [r] Restore | [d] Delete | [/] Filter | [a] All | [q] Quit",
                 )
+                .style(ui::style_dimmed())
+                .block(Block::default().borders(Borders::ALL))
             };
 
-            let footer = Paragraph::new(status_text)
-                .style(ui::style_dimmed())
-                .block(Block::default().borders(Borders::ALL));
             f.render_widget(footer, chunks[2]);
+
+            if let Some((msg, kind, _)) = &feedback {
+                let (border_color, text_style) = match kind {
+                    FeedbackKind::Success => (
+                        ui::COLOR_SUCCESS,
+                        ui::style_success(),
+                    ),
+                    FeedbackKind::Warn => (
+                        ui::COLOR_WARN,
+                        ui::style_warn(),
+                    ),
+                    FeedbackKind::Alert => (
+                        ui::COLOR_ALERT,
+                        ui::style_alert(),
+                    ),
+                    FeedbackKind::Info => (
+                        ui::COLOR_ACCENT,
+                        ui::style_header(),
+                    ),
+                };
+
+                let toast_width = (msg.chars().count() as u16 + 4)
+                    .max(24)
+                    .min(f.area().width.saturating_sub(4));
+                let toast_height = 3;
+                let toast_x = f.area().width.saturating_sub(toast_width + 2);
+                let toast_y = chunks[0].y + chunks[0].height;
+
+                let toast_area =
+                    ratatui::layout::Rect::new(toast_x, toast_y, toast_width, toast_height);
+
+                f.render_widget(Clear, toast_area);
+                let toast_block = Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(ratatui::style::Style::default().fg(border_color));
+                let toast_p = Paragraph::new(format!(" {}", msg))
+                    .style(text_style)
+                    .block(toast_block);
+                f.render_widget(toast_p, toast_area);
+            }
         })?;
 
-        if let Event::Key(key) = event::read()? {
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
             if searching {
                 match key.code {
                     KeyCode::Esc => {
@@ -179,8 +249,9 @@ fn run_app(
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break,
                     KeyCode::Char('/') => {
                         searching = true;
+                        feedback = None;
                     }
-                    KeyCode::Char(' ') => {
+                    KeyCode::Char(' ') | KeyCode::Enter => {
                         if let Some(i) = state.selected() {
                             if i < filtered_indices.len() {
                                 let real_idx = filtered_indices[i];
@@ -195,11 +266,21 @@ fn run_app(
                     KeyCode::Char('a') => {
                         if selected_indices.len() == filtered_indices.len() {
                             selected_indices.clear();
+                            feedback = Some((
+                                "Deselected all items".to_string(),
+                                FeedbackKind::Info,
+                                Instant::now(),
+                            ));
                         } else {
                             selected_indices = filtered_indices.iter().copied().collect();
+                            feedback = Some((
+                                format!("Selected all {} item(s)", selected_indices.len()),
+                                FeedbackKind::Info,
+                                Instant::now(),
+                            ));
                         }
                     }
-                    KeyCode::Char('r') | KeyCode::Enter => {
+                    KeyCode::Char('r') => {
                         let to_restore: Vec<usize> = if !selected_indices.is_empty() {
                             selected_indices.iter().copied().collect()
                         } else if let Some(i) = state.selected() {
@@ -212,11 +293,50 @@ fn run_app(
                             vec![]
                         };
 
+                        let mut restored_names = Vec::new();
+                        let mut errors = Vec::new();
+
                         for idx in to_restore {
                             let entry = &entries[idx];
-                            if restore_entry(entry, true).is_ok() {
-                                *restored_count += 1;
+                            let name = entry
+                                .original_path
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| {
+                                    entry.original_path.to_string_lossy().to_string()
+                                });
+
+                            match restore_entry(entry, true) {
+                                Ok(_) => {
+                                    *restored_count += 1;
+                                    restored_names.push(name);
+                                }
+                                Err(e) => {
+                                    errors.push(format!("{}: {}", name, e));
+                                }
                             }
+                        }
+
+                        if !restored_names.is_empty() {
+                            if restored_names.len() == 1 {
+                                feedback = Some((
+                                    format!("✔ Restored '{}'", restored_names[0]),
+                                    FeedbackKind::Success,
+                                    Instant::now(),
+                                ));
+                            } else {
+                                feedback = Some((
+                                    format!("✔ Restored {} items", restored_names.len()),
+                                    FeedbackKind::Success,
+                                    Instant::now(),
+                                ));
+                            }
+                        } else if !errors.is_empty() {
+                            feedback = Some((
+                                format!("❌ Failed: {}", errors[0]),
+                                FeedbackKind::Alert,
+                                Instant::now(),
+                            ));
                         }
 
                         *entries = trash::list_entries()?;
@@ -224,7 +344,9 @@ fn run_app(
                         if entries.is_empty() {
                             break;
                         }
-                        state.select(Some(0));
+                        if let Some(i) = state.selected() {
+                            state.select(Some(i.min(entries.len().saturating_sub(1))));
+                        }
                     }
                     KeyCode::Char('d') | KeyCode::Delete => {
                         let to_delete: Vec<usize> = if !selected_indices.is_empty() {
@@ -239,11 +361,53 @@ fn run_app(
                             vec![]
                         };
 
+                        let mut deleted_names = Vec::new();
+                        let mut errors = Vec::new();
+
                         for idx in to_delete {
                             let entry = &entries[idx];
-                            if delete_entry(entry).is_ok() {
-                                *deleted_count += 1;
+                            let name = entry
+                                .original_path
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| {
+                                    entry.original_path.to_string_lossy().to_string()
+                                });
+
+                            match delete_entry(entry) {
+                                Ok(_) => {
+                                    *deleted_count += 1;
+                                    deleted_names.push(name);
+                                }
+                                Err(e) => {
+                                    errors.push(format!("{}: {}", name, e));
+                                }
                             }
+                        }
+
+                        if !deleted_names.is_empty() {
+                            if deleted_names.len() == 1 {
+                                feedback = Some((
+                                    format!("🗑️ Deleted '{}'", deleted_names[0]),
+                                    FeedbackKind::Warn,
+                                    Instant::now(),
+                                ));
+                            } else {
+                                feedback = Some((
+                                    format!(
+                                        "🗑️ Permanently deleted {} items",
+                                        deleted_names.len()
+                                    ),
+                                    FeedbackKind::Warn,
+                                    Instant::now(),
+                                ));
+                            }
+                        } else if !errors.is_empty() {
+                            feedback = Some((
+                                format!("❌ Failed: {}", errors[0]),
+                                FeedbackKind::Alert,
+                                Instant::now(),
+                            ));
                         }
 
                         *entries = trash::list_entries()?;
@@ -251,14 +415,14 @@ fn run_app(
                         if entries.is_empty() {
                             break;
                         }
-                        state.select(Some(0));
+                        if let Some(i) = state.selected() {
+                            state.select(Some(i.min(entries.len().saturating_sub(1))));
+                        }
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
                         let i = match state.selected() {
                             Some(i) => {
-                                if filtered_indices.is_empty() {
-                                    0
-                                } else if i >= filtered_indices.len() - 1 {
+                                if filtered_indices.is_empty() || i >= filtered_indices.len() - 1 {
                                     0
                                 } else {
                                     i + 1
@@ -287,6 +451,7 @@ fn run_app(
                 }
             }
         }
+    }
     }
 
     Ok(())

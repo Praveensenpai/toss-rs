@@ -108,7 +108,7 @@ pub fn list_entries() -> Result<Vec<TrashEntry>> {
         }
     }
 
-    entries.sort_by(|a, b| b.deleted_at.cmp(&a.deleted_at));
+    entries.sort_by_key(|b| std::cmp::Reverse(b.deleted_at));
     Ok(entries)
 }
 
@@ -125,13 +125,12 @@ fn parse_trashinfo(info_path: &Path, files_dir: &Path) -> Result<TrashEntry> {
         if let Some(val) = line.strip_prefix("DeletionDate=") {
             deleted_at = chrono::NaiveDateTime::parse_from_str(val, "%Y-%m-%dT%H:%M:%S")
                 .ok()
-                .map(|dt| dt.and_local_timezone(Local).single())
-                .flatten();
+                .and_then(|dt| dt.and_local_timezone(Local).single());
         }
     }
 
     let original_path = original_path.context("Missing Path in trashinfo")?;
-    let deleted_at = deleted_at.unwrap_or_else(|| Local::now());
+    let deleted_at = deleted_at.unwrap_or_else(Local::now);
 
     let stem = info_path
         .file_stem()

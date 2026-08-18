@@ -173,9 +173,7 @@ fn run_restore_tui(
                 KeyCode::Down | KeyCode::Char('j') => {
                     let i = match state.selected() {
                         Some(i) => {
-                            if entries.is_empty() {
-                                0
-                            } else if i >= entries.len() - 1 {
+                            if entries.is_empty() || i >= entries.len() - 1 {
                                 0
                             } else {
                                 i + 1
