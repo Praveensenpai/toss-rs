@@ -66,7 +66,7 @@ fn run_app(
     let mut searching = false;
     let mut selected_indices: HashSet<usize> = HashSet::new();
     let mut feedback: Option<(String, FeedbackKind, Instant)> = None;
-    let mut visual_anchor: Option<usize> = None;
+    let mut visual_anchor: Option<(usize, HashSet<usize>)> = None;
 
     loop {
         if let Some((_, _, time)) = &feedback {
@@ -139,7 +139,7 @@ fn run_app(
                 .enumerate()
                 .map(|(list_pos, &real_idx)| {
                     let e = &entries[real_idx];
-                    let in_visual = if let Some(anchor) = visual_anchor {
+                    let in_visual = if let Some((anchor, _)) = visual_anchor {
                         let start = anchor.min(cur_selected);
                         let end = anchor.max(cur_selected);
                         list_pos >= start && list_pos <= end
@@ -313,7 +313,7 @@ fn run_app(
                         if visual_anchor.is_none() {
                             if let Some(i) = state.selected() {
                                 if i < filtered_indices.len() {
-                                    visual_anchor = Some(i);
+                                    visual_anchor = Some((i, selected_indices.clone()));
                                     selected_indices.insert(filtered_indices[i]);
                                     feedback = Some((
                                         "VISUAL MODE: Move with j/k to select range, v/Esc to exit"
@@ -514,9 +514,10 @@ fn run_app(
                             None => 0,
                         };
                         state.select(Some(i));
-                        if let Some(anchor) = visual_anchor {
+                        if let Some((anchor, ref base_selected)) = visual_anchor {
                             let start = anchor.min(i);
                             let end = anchor.max(i);
+                            selected_indices = base_selected.clone();
                             for idx in start..=end {
                                 if idx < filtered_indices.len() {
                                     selected_indices.insert(filtered_indices[idx]);
@@ -538,9 +539,10 @@ fn run_app(
                             None => 0,
                         };
                         state.select(Some(i));
-                        if let Some(anchor) = visual_anchor {
+                        if let Some((anchor, ref base_selected)) = visual_anchor {
                             let start = anchor.min(i);
                             let end = anchor.max(i);
+                            selected_indices = base_selected.clone();
                             for idx in start..=end {
                                 if idx < filtered_indices.len() {
                                     selected_indices.insert(filtered_indices[idx]);
