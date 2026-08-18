@@ -6,6 +6,10 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Ratatui](https://img.shields.io/badge/TUI-Ratatui-green.svg)](https://ratatui.rs)
 
+<p align="center">
+  <img src="assets/demo.gif" alt="toss Demo" width="900">
+</p>
+
 `toss` is a high-performance terminal utility that manages trashed files in compliance with the FreeDesktop.org Trash Specification. It safely records original paths, deletion timestamps, and file sizes in `~/.local/share/Trash`.
 
 ---
